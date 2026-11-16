@@ -31,8 +31,22 @@ Money goes straight from the guest's bank to the couple's UPI ID. This site neve
 
 These Firebase web keys are meant to be public; the security rules are what protect the data.
 
+## How the data is stored
+
+| Record | Who can read it | What it holds |
+|---|---|---|
+| `wishlists/{id}` | Anyone with the link | Names, date, UPI ID, optional QR image, dreams |
+| `wishlists/{id}/gifts/{gid}` | Anyone with the link | Guest name, blessing, which dream. No amount |
+| `wishlists/{id}/amounts/{gid}` | The couple only | The amount of that gift |
+| `wishlists/{id}/totals/{goal}` | Anyone with the link | Running total for one dream |
+
+A guest records a gift as one all-or-nothing write to `gifts`, `amounts` and `totals`. The rules check all three against each other, so a total cannot be raised without a matching gift, and gifts cannot be written to a wishlist or dream that does not exist.
+
+The couple can upload a picture of their own UPI QR code (Couple's desk → Wedding details). It is shrunk in the browser and saved inside the wishlist record; guests then see it instead of the automatic QR code.
+
 ## Limits to know
 
 - **Payments are not verified.** A guest taps "I've paid" after paying in their UPI app. The couple can remove wrong entries from the couple's desk. Automatic confirmation needs a payment gateway (Razorpay, Cashfree), which requires business KYC and charges a fee per payment.
-- **Gift amounts are hidden in the page, not secret.** Guests see names and blessings only, but the amounts are stored in the same public records.
-- **The Firebase path has not been tested against a live project yet.** Demo mode has been tested end to end.
+- **Amounts are private, totals are public.** Guests cannot read what anyone gave. Someone watching a dream's total closely could still work out an amount from how much the total moved when a new name appeared.
+- **No spam protection yet.** Anyone with the link can record a gift without paying. Fake entries need a real wishlist and dream, are size-limited, and the couple can remove them.
+- **Google sign-in has not been tested on the live site yet.** Everything else was tested against the Firebase emulator.

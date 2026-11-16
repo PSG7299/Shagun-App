@@ -1,16 +1,18 @@
 :root{
-  /* One phone-width column. Quiet mehndi-green page; the red shagun envelope is the single loud element. */
-  --ground:#0e3b2e;
-  --panel:#14493a;
-  --line:#2c6652;
-  --ink:#f6efe0;
-  --muted:#b9cbbf;
+  /* One phone-width column. Warm ivory page with wine-red text; the red shagun envelope is the single loud element. */
+  --ground:#fbf4e6;
+  --panel:#fffdf8;
+  --line:#e7d8bd;
+  --ink:#3b1420;
+  --muted:#75605a;
+  --accent:#a8143a;
+  --track:#efe2c8;
   --marigold:#f5a81c;
   --marigold-ink:#2b1a00;
   --sindoor:#c2183a;
   --display:"Rozha One","Georgia",serif;
   --body:"Hind","Segoe UI",system-ui,sans-serif;
-  color-scheme:dark;
+  color-scheme:light;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -19,27 +21,27 @@ body{background:var(--ground);color:var(--ink);font-family:var(--body);font-size
 .wrap{max-width:520px;margin:0 auto;padding:20px 16px 56px;display:flex;flex-direction:column;gap:22px}
 h1,h2,h3{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance;line-height:1.1}
 p{margin:0}
-a{color:var(--marigold)}
+a{color:var(--accent)}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer}
-:focus-visible{outline:2px solid var(--marigold);outline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .num{font-variant-numeric:tabular-nums}
 
 .banner{border:1px dashed var(--line);border-radius:10px;padding:8px 12px;font-size:13.5px;color:var(--muted)}
-.brand{font-family:var(--display);font-size:20px;color:var(--marigold);text-decoration:none}
+.brand{font-family:var(--display);font-size:20px;color:var(--accent);text-decoration:none}
 .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px}
 
 .hero{display:flex;flex-direction:column;gap:10px;padding-top:6px}
-.eyebrow{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--marigold)}
+.eyebrow{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
 .hero h1{font-size:clamp(40px,12.5vw,60px)}
-.hero h1 .amp{color:var(--marigold)}
+.hero h1 .amp{color:var(--accent)}
 .tag{color:var(--muted);max-width:36ch}
 .total{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:14px;margin-top:4px}
 .total-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
 .total-big{font-family:var(--display);font-size:30px}
 .total-small{color:var(--muted);font-size:14px}
 
-.bar{height:10px;border-radius:99px;background:#0a2d23;overflow:hidden}
+.bar{height:10px;border-radius:99px;background:var(--track);overflow:hidden}
 .bar>i{display:block;height:100%;border-radius:99px;background:var(--marigold);transition:width .5s ease}
 @media (prefers-reduced-motion:reduce){.bar>i{transition:none}}
 
@@ -48,19 +50,19 @@ button{cursor:pointer}
 .stack{display:flex;flex-direction:column;gap:12px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px}
 .goal-top{display:flex;gap:12px;align-items:flex-start}
-.ico{flex:none;width:42px;height:42px;border-radius:50%;background:var(--ground);border:1px solid var(--line);display:grid;place-items:center;color:var(--marigold)}
+.ico{flex:none;width:42px;height:42px;border-radius:50%;background:var(--ground);border:1px solid var(--line);display:grid;place-items:center;color:var(--accent)}
 .ico svg{width:22px;height:22px}
 .goal-name{font-size:20px;overflow-wrap:anywhere}
 .goal-meta{display:flex;justify-content:space-between;gap:10px;font-size:14px;color:var(--muted);flex-wrap:wrap}
 .goal-meta b{color:var(--ink);font-weight:600}
-.pill{font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;border:1px solid var(--marigold);color:var(--marigold);white-space:nowrap}
-.pill.done{background:var(--marigold);color:var(--marigold-ink)}
+.pill{font-size:12px;font-weight:600;border-radius:99px;padding:2px 9px;border:1px solid var(--accent);color:var(--accent);white-space:nowrap}
+.pill.done{background:var(--marigold);border-color:var(--marigold);color:var(--marigold-ink)}
 
 .btn{border:1px solid var(--line);background:transparent;border-radius:10px;padding:10px 14px;font-weight:600;min-height:44px;color:var(--ink)}
 a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
 .btn.primary{background:var(--marigold);border-color:var(--marigold);color:var(--marigold-ink)}
 .btn.small{min-height:36px;padding:6px 11px;font-size:14px}
-.btn.danger{border-color:var(--sindoor);color:#ffb3c0}
+.btn.danger{border-color:var(--sindoor);color:var(--sindoor)}
 .btn.on{background:var(--ink);color:var(--ground);border-color:var(--ink)}
 .btn:disabled{opacity:.5;cursor:default}
 .grow{flex:1}
@@ -75,23 +77,23 @@ a.btn{text-decoration:none;display:inline-flex;align-items:center;justify-conten
 .gift:last-child{border-bottom:0}
 .gift-who{font-weight:600;overflow-wrap:anywhere}
 .gift-note{color:var(--muted);font-size:14.5px;overflow-wrap:anywhere}
-.gift-for{font-size:12.5px;color:var(--marigold)}
+.gift-for{font-size:12.5px;color:var(--accent)}
 .gift-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
 .empty{color:var(--muted);padding:10px 0}
 .foot{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:6px}
 
 dialog{border:1px solid var(--line);border-radius:16px;background:var(--panel);color:var(--ink);padding:0;width:min(480px,calc(100vw - 24px));max-height:calc(100% - 24px)}
-dialog::backdrop{background:rgba(3,18,13,.72)}
+dialog::backdrop{background:rgba(59,20,32,.55)}
 .sheet{padding:18px;display:flex;flex-direction:column;gap:14px}
 .sheet h3{font-size:24px}
 .field{display:flex;flex-direction:column;gap:5px}
 .field label,.label{font-size:13.5px;color:var(--muted)}
 .field input,.field select,.field textarea{background:var(--ground);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;width:100%}
 .field textarea{min-height:70px;resize:vertical}
-.err{color:#ffb3c0;font-size:14px;min-height:1.2em}
+.err{color:var(--sindoor);font-size:14px;min-height:1.2em}
 
 /* The shagun envelope */
-.lifafa{position:relative;background:var(--sindoor);border-radius:12px;padding:26px 16px 16px;text-align:center;overflow:hidden}
+.lifafa{position:relative;background:var(--sindoor);color:#fff7e8;border-radius:12px;padding:26px 16px 16px;text-align:center;overflow:hidden}
 .lifafa::before{content:"";position:absolute;left:50%;top:0;transform:translateX(-50%);border-left:260px solid transparent;border-right:260px solid transparent;border-top:22px solid rgba(0,0,0,.2)}
 .lifafa-amt{font-family:var(--display);font-size:44px;line-height:1}
 .lifafa-sub{font-size:13px;opacity:.9;margin-top:4px}
@@ -102,3 +104,7 @@ dialog::backdrop{background:rgba(3,18,13,.72)}
 .upi{background:var(--ground);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
 .qr{align-self:center;width:170px;background:#fff;border-radius:8px;padding:6px;line-height:0}
 .qr svg{width:100%;height:auto}
+.qr img{width:100%;height:auto;display:block}
+.hint{font-size:12.5px;color:var(--muted)}
+.qr-prev{width:140px;height:auto;background:#fff;border-radius:8px;padding:6px}
+input[type=file]{font-size:13.5px;color:var(--muted);max-width:100%}

@@ -11,12 +11,15 @@ const ICONS = {
 };
 const PRESETS = [501, 1101, 2101, 5101, 11001]; // shagun always ends in 1
 const UPI_RE = /^[\w.\-]{2,}@[A-Za-z]{2,}$/;
+const QR_RE = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
+const QR_MAX = 380000; // characters; the database rule allows 400000
 
 const wishlistId = new URLSearchParams(location.search).get("w");
-const S = { user: null, wl: null, gifts: [], ready: false, missing: false, desk: false };
+const S = { user: null, wl: null, gifts: [], totals: {}, amounts: {}, ready: false, missing: false, desk: false };
 let api = null;
-let mine = [];
-try { mine = JSON.parse(localStorage.getItem("shagun-mine")) || []; } catch (e) { mine = []; }
+// Gifts recorded from this browser, { giftId: amount }, so a guest still sees their own amount.
+let mine = {};
+try { mine = JSON.parse(localStorage.getItem("shagun-mine-v2")) || {}; } catch (e) { mine = {}; }
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const inr = (n) => "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
@@ -26,7 +29,7 @@ const banner = (t) => { $("banner").hidden = !t; $("banner").textContent = t || 
 const icon = (k) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[k] || ICONS.gift) + "</svg>";
 const isOwner = () => !!(S.user && S.wl && S.wl.owner === S.user.uid);
 const goalsOf = () => (S.wl && Array.isArray(S.wl.goals) ? S.wl.goals : []);
-const raisedFor = (id) => S.gifts.reduce((t, g) => t + (g.goal === id ? Number(g.amount) || 0 : 0), 0);
+const raisedFor = (id) => Number(S.totals[id]) || 0;
 const saveFailed = (el) => () => { el.textContent = "That didn't save. Check your connection and try again."; };
 const DEMO_NOTE = "Demo mode: this site isn't connected to a database yet, so everything is saved only in this browser.";
 
@@ -126,11 +129,11 @@ function renderWishlist() {
   let wh = "";
   if (S.ready && !gifts.length) wh = '<p class="empty">No gifts yet. Yours could be the first.</p>';
   gifts.forEach((g) => {
-    const showAmt = desk || mine.indexOf(g.id) >= 0;
+    const amt = desk ? S.amounts[g.id] : mine[g.id];
     wh += '<div class="gift"><div><div class="gift-who">' + esc(g.name || "A guest") + "</div>" +
       (g.note ? '<div class="gift-note">' + esc(g.note) + "</div>" : "") +
       '<div class="gift-for">' + esc(known[g.goal] ? known[g.goal].title : "A dream") + "</div></div>" +
-      '<div class="gift-side">' + (showAmt ? '<span class="num">' + inr(g.amount) + "</span>" : "") +
+      '<div class="gift-side">' + (amt ? '<span class="num">' + inr(amt) + "</span>" : "") +
       (desk ? '<button class="btn small danger" data-rm="' + esc(g.id) + '">Remove</button>' : "") + "</div></div>";
   });
   $("wall").innerHTML = wh;
@@ -138,15 +141,25 @@ function renderWishlist() {
 
 function startWishlist() {
   const timer = setTimeout(() => { if (!S.ready) banner("The wishlist can't be reached yet. It will appear once the connection returns."); }, 10000);
-  const got = { w: false, g: false };
+  const got = { w: false, g: false, t: false };
   const mark = (k) => {
     got[k] = true;
-    if (got.w && got.g && !S.ready) { S.ready = true; clearTimeout(timer); banner(isDemo ? DEMO_NOTE : ""); }
+    if (got.w && got.g && got.t && !S.ready) { S.ready = true; clearTimeout(timer); banner(isDemo ? DEMO_NOTE : ""); }
     renderWishlist();
   };
   const fail = () => { clearTimeout(timer); S.ready = true; banner("The wishlist couldn't be loaded. Check your connection and reload the page."); renderWishlist(); };
-  api.watchWishlist(wishlistId, (w) => { S.wl = w; S.missing = !w; mark("w"); }, fail);
+  api.watchWishlist(wishlistId, (w) => { S.wl = w; S.missing = !w; syncAmounts(); mark("w"); }, fail);
   api.watchGifts(wishlistId, (g) => { S.gifts = g; mark("g"); }, fail);
+  api.watchTotals(wishlistId, (t) => { S.totals = t; mark("t"); }, fail);
+}
+// Amounts are private to the couple, so they are only fetched once the owner is signed in.
+let stopAmounts = null;
+function syncAmounts() {
+  if (isOwner() && !stopAmounts) {
+    stopAmounts = api.watchAmounts(wishlistId, (a) => { S.amounts = a; renderWishlist(); }, () => {});
+  } else if (!isOwner() && stopAmounts) {
+    stopAmounts(); stopAmounts = null; S.amounts = {};
+  }
 }
 
 /* ---------- give flow ---------- */
@@ -188,7 +201,10 @@ $("giveForm").addEventListener("submit", (e) => {
   if (m.upi) {
     const link = "upi://pay?pa=" + encodeURIComponent(m.upi) + "&pn=" + encodeURIComponent(payee) + "&am=" + give.amount + "&cu=INR&tn=" + encodeURIComponent("Shagun from " + name);
     let qr = "";
-    try {
+    if (QR_RE.test(m.qr || "")) {
+      qr = '<div class="label">Or scan the couple\'s QR code and enter <b class="num">' + inr(give.amount) + '</b></div><div class="qr"><img alt="The couple\'s UPI QR code" src="' + esc(m.qr) + '"></div>' +
+        '<a class="btn small" download="upi-qr.jpg" href="' + esc(m.qr) + '">Save QR to scan from gallery</a>';
+    } else try {
       if (window.qrcode) { const q = window.qrcode(0, "M"); q.addData(link); q.make(); qr = '<div class="label">Or scan this with any UPI app</div><div class="qr">' + q.createSvgTag({ cellSize: 4, margin: 2, scalable: true }) + "</div>"; }
     } catch (err) { qr = ""; }
     $("upiBox").innerHTML = '<div>Pay <b class="num">' + inr(give.amount) + "</b> to " + esc(payee) + ".</div><code>" + esc(m.upi) + "</code>" +
@@ -206,12 +222,12 @@ function copyText(text, btn) {
 $("upiBox").addEventListener("click", (e) => { const b = e.target.closest("#copyUpi"); if (b) copyText((S.wl || {}).upi || "", b); });
 $("copyLink").addEventListener("click", function () { copyText($("shareLink").textContent, this); });
 $("recordBtn").addEventListener("click", function () {
-  const btn = this, name = $("giveName").value.trim();
+  const btn = this, name = $("giveName").value.trim(), amount = give.amount;
   btn.disabled = true; $("payErr").textContent = "";
-  api.addGift(wishlistId, { goal: $("giveGoal").value, amount: give.amount, name: name.slice(0, 40), note: $("giveNote").value.trim().slice(0, 140), ts: Date.now() })
+  api.addGift(wishlistId, { goal: $("giveGoal").value, amount, name: name.slice(0, 40), note: $("giveNote").value.trim().slice(0, 140) })
     .then((gid) => {
-      mine.push(gid);
-      try { localStorage.setItem("shagun-mine", JSON.stringify(mine)); localStorage.setItem("shagun-name", name); } catch (e) { /* no storage */ }
+      mine[gid] = amount;
+      try { localStorage.setItem("shagun-mine-v2", JSON.stringify(mine)); localStorage.setItem("shagun-name", name); } catch (e) { /* no storage */ }
       $("giveNote").value = ""; $("giveDlg").close(); renderWishlist();
     })
     .catch(() => { $("payErr").textContent = "Your gift wasn't recorded. Check your connection and try again."; })
@@ -245,6 +261,7 @@ $("goalDel").addEventListener("click", function () {
 $("detailsBtn").addEventListener("click", () => {
   const m = S.wl || {};
   $("metaA").value = m.a || ""; $("metaB").value = m.b || ""; $("metaDate").value = m.date || ""; $("metaUpi").value = m.upi || ""; $("metaErr").textContent = "";
+  $("metaQr").value = ""; setQr(QR_RE.test(m.qr || "") ? m.qr : "");
   $("metaDlg").showModal();
 });
 $("metaForm").addEventListener("submit", (e) => {
@@ -252,8 +269,46 @@ $("metaForm").addEventListener("submit", (e) => {
   const a = $("metaA").value.trim(), b = $("metaB").value.trim(), upi = $("metaUpi").value.trim();
   if (!a || !b) { $("metaErr").textContent = "Enter both names."; return; }
   if (upi && !UPI_RE.test(upi)) { $("metaErr").textContent = "A UPI ID looks like name@bank. Check it and try again."; return; }
-  api.updateWishlist(wishlistId, { a, b, date: $("metaDate").value || "", upi }).then(() => $("metaDlg").close(), saveFailed($("metaErr")));
+  api.updateWishlist(wishlistId, { a, b, date: $("metaDate").value || "", upi, qr: newQr || null }).then(() => $("metaDlg").close(), saveFailed($("metaErr")));
 });
+
+/* ---------- the couple's own QR image ---------- */
+let newQr = "";
+function setQr(data) {
+  newQr = data;
+  $("qrPrev").hidden = !data; $("qrRemove").hidden = !data;
+  if (data) $("qrPrev").src = data; else $("qrPrev").removeAttribute("src");
+}
+// Shrinks the photo in the browser and re-encodes it as a JPEG small enough for one database record.
+function shrinkImage(file) {
+  return new Promise((ok, no) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onerror = () => { URL.revokeObjectURL(url); no(new Error("unreadable")); };
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      for (const side of [900, 700, 520, 400]) {
+        const k = Math.min(1, side / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+        const x = c.getContext("2d");
+        x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+        const data = c.toDataURL("image/jpeg", 0.85);
+        if (data.length <= QR_MAX && QR_RE.test(data)) { ok(data); return; }
+      }
+      no(new Error("too big"));
+    };
+    img.src = url;
+  });
+}
+$("metaQr").addEventListener("change", function () {
+  const f = this.files && this.files[0];
+  if (!f) return;
+  $("metaErr").textContent = "";
+  if (!/^image\//.test(f.type)) { $("metaErr").textContent = "Choose an image file, such as a screenshot of your QR code."; this.value = ""; return; }
+  shrinkImage(f).then(setQr, () => { $("metaErr").textContent = "That image couldn't be used. Try a screenshot of the QR code instead."; this.value = ""; });
+});
+$("qrRemove").addEventListener("click", () => { $("metaQr").value = ""; setQr(""); });
+
 $("deskBtn").addEventListener("click", () => { S.desk = !S.desk; renderWishlist(); });
 $("addGoalBtn").addEventListener("click", () => openGoal(null));
 $("goals").addEventListener("click", (e) => {
@@ -264,7 +319,9 @@ $("wall").addEventListener("click", (e) => {
   const b = e.target.closest("[data-rm]"); if (!b) return;
   if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "Tap again"; return; }
   b.disabled = true;
-  api.removeGift(wishlistId, b.dataset.rm).catch(() => { b.disabled = false; b.textContent = "Try again"; });
+  const gift = S.gifts.find((g) => g.id === b.dataset.rm);
+  if (!gift) return;
+  api.removeGift(wishlistId, gift, S.amounts[gift.id] || 0).catch(() => { b.disabled = false; b.textContent = "Try again"; });
 });
 document.addEventListener("click", (e) => { const c = e.target.closest("[data-close]"); if (c) c.closest("dialog").close(); });
 
@@ -278,7 +335,7 @@ async function boot() {
     banner("The site couldn't start. Check your connection and reload the page.");
     return;
   }
-  api.onAuth((u) => { S.user = u; if (wishlistId) renderWishlist(); else renderHome(); });
+  api.onAuth((u) => { S.user = u; if (wishlistId) { syncAmounts(); renderWishlist(); } else renderHome(); });
   if (wishlistId) startWishlist();
 }
 boot();
