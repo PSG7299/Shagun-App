@@ -81,6 +81,20 @@ async function firebaseBackend() {
       }
       return batch.commit();
     },
+    // Removes the wishlist and everything recorded under it. The wishlist itself goes last,
+    // because the rules need it to prove who the owner is.
+    async deleteWishlist(id) {
+      const refs = [];
+      for (const sub of ["gifts", "amounts", "totals"]) {
+        (await fs.getDocs(fs.collection(db, "wishlists", id, sub))).docs.forEach((d) => refs.push(d.ref));
+      }
+      refs.push(fs.doc(db, "wishlists", id));
+      for (let i = 0; i < refs.length; i += 400) {
+        const batch = fs.writeBatch(db);
+        refs.slice(i, i + 400).forEach((r) => batch.delete(r));
+        await batch.commit();
+      }
+    },
     // One all-or-nothing write: the public gift, its private amount, and the dream's total.
     async addGift(id, gift) {
       const ref = fs.doc(fs.collection(db, "wishlists", id, "gifts"));
@@ -167,6 +181,10 @@ function demoBackend() {
     async updateWishlist(id, patch) {
       Object.assign(data.wishlists[id], copy(patch));
       if (patch.qr === null) delete data.wishlists[id].qr;
+      commit();
+    },
+    async deleteWishlist(id) {
+      delete data.wishlists[id]; delete data.gifts[id];
       commit();
     },
     async addGift(id, gift) {
