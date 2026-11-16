@@ -145,12 +145,23 @@ function startWishlist() {
   const mark = (k) => {
     got[k] = true;
     if (got.w && got.g && got.t && !S.ready) { S.ready = true; clearTimeout(timer); banner(isDemo ? DEMO_NOTE : ""); }
+    healTotals();
     renderWishlist();
   };
   const fail = () => { clearTimeout(timer); S.ready = true; banner("The wishlist couldn't be loaded. Check your connection and reload the page."); renderWishlist(); };
   api.watchWishlist(wishlistId, (w) => { S.wl = w; S.missing = !w; syncAmounts(); mark("w"); }, fail);
   api.watchGifts(wishlistId, (g) => { S.gifts = g; mark("g"); }, fail);
   api.watchTotals(wishlistId, (t) => { S.totals = t; mark("t"); }, fail);
+}
+// Every dream needs a totals record before guests can give to it. Dreams added by an older
+// version of the site don't have one, so the couple's browser creates any that are missing.
+let healed = "";
+function healTotals() {
+  if (!isOwner() || !S.ready) return;
+  const missing = goalsOf().filter((g) => !(g.id in S.totals)).map((g) => g.id).join(",");
+  if (!missing || missing === healed) return;
+  healed = missing;
+  api.updateWishlist(wishlistId, { goals: goalsOf() }).catch(() => { healed = ""; });
 }
 // Amounts are private to the couple, so they are only fetched once the owner is signed in.
 let stopAmounts = null;
@@ -230,7 +241,11 @@ $("recordBtn").addEventListener("click", function () {
       try { localStorage.setItem("shagun-mine-v2", JSON.stringify(mine)); localStorage.setItem("shagun-name", name); } catch (e) { /* no storage */ }
       $("giveNote").value = ""; $("giveDlg").close(); renderWishlist();
     })
-    .catch(() => { $("payErr").textContent = "Your gift wasn't recorded. Check your connection and try again."; })
+    .catch((err) => {
+      $("payErr").textContent = err && err.code === "permission-denied"
+        ? "Your gift couldn't be recorded just now. Reload the page and try again. If it keeps happening, tell the couple."
+        : "Your gift wasn't recorded. Check your connection and try again.";
+    })
     .then(() => { btn.disabled = false; });
 });
 
@@ -261,6 +276,7 @@ $("goalDel").addEventListener("click", function () {
 $("detailsBtn").addEventListener("click", () => {
   const m = S.wl || {};
   $("metaA").value = m.a || ""; $("metaB").value = m.b || ""; $("metaDate").value = m.date || ""; $("metaUpi").value = m.upi || ""; $("metaErr").textContent = "";
+  wlDelArmed = false; $("wlDel").textContent = "Delete this wishlist"; $("wlDel").disabled = false;
   $("metaQr").value = ""; setQr(QR_RE.test(m.qr || "") ? m.qr : "");
   $("metaDlg").showModal();
 });
@@ -270,6 +286,16 @@ $("metaForm").addEventListener("submit", (e) => {
   if (!a || !b) { $("metaErr").textContent = "Enter both names."; return; }
   if (upi && !UPI_RE.test(upi)) { $("metaErr").textContent = "A UPI ID looks like name@bank. Check it and try again."; return; }
   api.updateWishlist(wishlistId, { a, b, date: $("metaDate").value || "", upi, qr: newQr || null }).then(() => $("metaDlg").close(), saveFailed($("metaErr")));
+});
+
+let wlDelArmed = false;
+$("wlDel").addEventListener("click", function () {
+  if (!wlDelArmed) { wlDelArmed = true; this.textContent = "Tap again to delete everything"; return; }
+  this.disabled = true; this.textContent = "Deleting…";
+  api.deleteWishlist(wishlistId).then(() => { location.href = "./"; }, () => {
+    this.disabled = false; wlDelArmed = false; this.textContent = "Delete this wishlist";
+    $("metaErr").textContent = "The wishlist couldn't be deleted. Check your connection and try again.";
+  });
 });
 
 /* ---------- the couple's own QR image ---------- */
@@ -335,7 +361,7 @@ async function boot() {
     banner("The site couldn't start. Check your connection and reload the page.");
     return;
   }
-  api.onAuth((u) => { S.user = u; if (wishlistId) { syncAmounts(); renderWishlist(); } else renderHome(); });
+  api.onAuth((u) => { S.user = u; if (wishlistId) { syncAmounts(); healTotals(); renderWishlist(); } else renderHome(); });
   if (wishlistId) startWishlist();
 }
 boot();

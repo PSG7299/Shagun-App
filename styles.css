@@ -108,3 +108,4 @@ dialog::backdrop{background:rgba(59,20,32,.55)}
 .hint{font-size:12.5px;color:var(--muted)}
 .qr-prev{width:140px;height:auto;background:#fff;border-radius:8px;padding:6px}
 input[type=file]{font-size:13.5px;color:var(--muted);max-width:100%}
+.danger-zone{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
