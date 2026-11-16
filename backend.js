@@ -49,18 +49,56 @@ async function firebaseBackend() {
         (s) => cb(s.exists() ? { id: s.id, ...s.data() } : null), onErr);
     },
     watchGifts(id, cb, onErr) {
-      return fs.onSnapshot(fs.collection(db, "wishlists", id, "gifts"),
-        (q) => cb(q.docs.map((d) => ({ id: d.id, ...d.data() }))), onErr);
+      return fs.onSnapshot(fs.collection(db, "wishlists", id, "gifts"), (q) => cb(q.docs.map((d) => {
+        const g = d.data({ serverTimestamps: "estimate" });
+        return { id: d.id, goal: g.goal, name: g.name, note: g.note, ts: g.ts && g.ts.toMillis ? g.ts.toMillis() : 0 };
+      })), onErr);
     },
-    updateWishlist(id, patch) {
-      return fs.updateDoc(fs.doc(db, "wishlists", id), patch);
+    // Public running total per dream: { goalId: rupees }.
+    watchTotals(id, cb, onErr) {
+      return fs.onSnapshot(fs.collection(db, "wishlists", id, "totals"), (q) => {
+        const t = {}; q.docs.forEach((d) => { t[d.id] = d.data().raised || 0; }); cb(t);
+      }, onErr);
     },
+    // Couple only: { giftId: rupees }. The rules refuse this for anyone else.
+    watchAmounts(id, cb, onErr) {
+      return fs.onSnapshot(fs.collection(db, "wishlists", id, "amounts"), (q) => {
+        const a = {}; q.docs.forEach((d) => { a[d.id] = d.data().amount || 0; }); cb(a);
+      }, onErr);
+    },
+    // Saving the dreams also keeps one totals record per dream, in the same write.
+    async updateWishlist(id, patch) {
+      const batch = fs.writeBatch(db);
+      const p = { ...patch };
+      if (p.qr === null) p.qr = fs.deleteField(); // null means "remove the QR image"
+      batch.update(fs.doc(db, "wishlists", id), p);
+      if (patch.goals) {
+        const have = await fs.getDocs(fs.collection(db, "wishlists", id, "totals"));
+        const ids = patch.goals.map((g) => g.id);
+        const seen = have.docs.map((d) => d.id);
+        ids.filter((g) => seen.indexOf(g) < 0).forEach((g) => batch.set(fs.doc(db, "wishlists", id, "totals", g), { raised: 0, last: "" }));
+        seen.filter((g) => ids.indexOf(g) < 0).forEach((g) => batch.delete(fs.doc(db, "wishlists", id, "totals", g)));
+      }
+      return batch.commit();
+    },
+    // One all-or-nothing write: the public gift, its private amount, and the dream's total.
     async addGift(id, gift) {
-      const ref = await fs.addDoc(fs.collection(db, "wishlists", id, "gifts"), gift);
+      const ref = fs.doc(fs.collection(db, "wishlists", id, "gifts"));
+      const batch = fs.writeBatch(db);
+      batch.set(ref, { goal: gift.goal, name: gift.name, note: gift.note, ts: fs.serverTimestamp() });
+      batch.set(fs.doc(db, "wishlists", id, "amounts", ref.id), { amount: gift.amount });
+      batch.update(fs.doc(db, "wishlists", id, "totals", gift.goal), { raised: fs.increment(gift.amount), last: ref.id });
+      await batch.commit();
       return ref.id;
     },
-    removeGift(id, giftId) {
-      return fs.deleteDoc(fs.doc(db, "wishlists", id, "gifts", giftId));
+    async removeGift(id, gift, amount) {
+      const batch = fs.writeBatch(db);
+      batch.delete(fs.doc(db, "wishlists", id, "gifts", gift.id));
+      batch.delete(fs.doc(db, "wishlists", id, "amounts", gift.id));
+      const tref = fs.doc(db, "wishlists", id, "totals", gift.goal);
+      const t = await fs.getDoc(tref);
+      if (t.exists()) batch.update(tref, { raised: Math.max(0, (t.data().raised || 0) - (amount || 0)), last: "" });
+      return batch.commit();
     },
   };
 }
@@ -118,10 +156,17 @@ function demoBackend() {
       return watch(() => cb(data.wishlists[id] ? { id, ...copy(data.wishlists[id]) } : null));
     },
     watchGifts(id, cb) {
-      return watch(() => cb(copy(data.gifts[id] || [])));
+      return watch(() => cb(copy(data.gifts[id] || []).map((g) => ({ id: g.id, goal: g.goal, name: g.name, note: g.note, ts: g.ts }))));
+    },
+    watchTotals(id, cb) {
+      return watch(() => { const t = {}; (data.gifts[id] || []).forEach((g) => { t[g.goal] = (t[g.goal] || 0) + g.amount; }); cb(t); });
+    },
+    watchAmounts(id, cb) {
+      return watch(() => { const a = {}; (data.gifts[id] || []).forEach((g) => { a[g.id] = g.amount; }); cb(a); });
     },
     async updateWishlist(id, patch) {
       Object.assign(data.wishlists[id], copy(patch));
+      if (patch.qr === null) delete data.wishlists[id].qr;
       commit();
     },
     async addGift(id, gift) {
@@ -130,8 +175,8 @@ function demoBackend() {
       commit();
       return gid;
     },
-    async removeGift(id, giftId) {
-      data.gifts[id] = (data.gifts[id] || []).filter((g) => g.id !== giftId);
+    async removeGift(id, gift) {
+      data.gifts[id] = (data.gifts[id] || []).filter((g) => g.id !== gift.id);
       commit();
     },
   };

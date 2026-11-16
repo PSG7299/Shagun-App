@@ -22,8 +22,8 @@
   <main id="home" class="stack" hidden style="gap:22px">
     <header class="hero">
       <div class="eyebrow">Wedding wishlist</div>
-      <h1>Skip the mixer. Fund a dream.</h1>
-      <p class="tag">List what you are saving for, share one link, and let every guest put their shagun towards it by UPI.</p>
+      <h1>Blessings that build a life together.</h1>
+      <p class="tag">Tell your guests what you are dreaming of, share one link, and let their shagun become part of your first home, your first journey, your new beginning.</p>
     </header>
     <ol class="steps">
       <li><b>Create your wishlist</b> with your names, wedding date and UPI ID.</li>
@@ -61,7 +61,7 @@
     <header class="hero">
       <div class="eyebrow" id="date">Wedding wishlist</div>
       <h1 id="names">&nbsp;</h1>
-      <p class="tag">Skip the mixer and the dinner set. Put your shagun towards something we are saving for.</p>
+      <p class="tag">Your blessings mean the most to us. If you wish to give shagun, it will help us build the dreams we are starting our life with.</p>
       <div class="total">
         <div class="total-row">
           <span class="total-big num" id="raised">₹0</span>
@@ -168,6 +168,11 @@
     </div>
     <div class="field"><label for="metaDate">Wedding date</label><input id="metaDate" type="date"></div>
     <div class="field"><label for="metaUpi">UPI ID that receives gifts</label><input id="metaUpi" maxlength="60" autocomplete="off" placeholder="name@bank"></div>
+    <div class="field"><label for="metaQr">Your own UPI QR code image (optional)</label>
+      <input id="metaQr" type="file" accept="image/*">
+      <div class="hint">Upload a screenshot of the QR from your UPI app. Guests will see it instead of the automatic QR code.</div>
+      <img id="qrPrev" class="qr-prev" alt="Your uploaded QR code" hidden>
+      <button type="button" class="btn small danger" id="qrRemove" hidden>Remove QR image</button></div>
     <div class="err" id="metaErr" role="alert"></div>
     <div class="row">
       <button type="button" class="btn" data-close>Cancel</button>

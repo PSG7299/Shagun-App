@@ -1,29 +1,104 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Layout
+    //   wishlists/{id}                 public: names, date, UPI ID, optional QR image, dreams
+    //   wishlists/{id}/gifts/{gid}     public: who gave, blessing, which dream. No amount.
+    //   wishlists/{id}/amounts/{gid}   couple only: the amount of that gift
+    //   wishlists/{id}/totals/{goal}   public: running total for one dream
+    //
+    // A guest records a gift as one all-or-nothing write of gifts + amounts + totals.
+    // Each rule checks the other two, so nobody can add to a total without a matching
+    // gift, hide a gift from the total, or write to a wishlist or dream that doesn't exist.
+
+    function wl(id) { return /databases/$(database)/documents/wishlists/$(id); }
+    function owns(id) { return request.auth != null && get(wl(id)).data.owner == request.auth.uid; }
+
+    function validGoals(goals) {
+      return goals is list && goals.size() <= 20;
+    }
+    function validWishlist(d) {
+      return d.keys().hasOnly(['owner', 'a', 'b', 'date', 'upi', 'qr', 'goals', 'createdAt'])
+        && d.keys().hasAll(['owner', 'a', 'b', 'date', 'upi', 'goals', 'createdAt'])
+        && d.a is string && d.a.size() > 0 && d.a.size() <= 40
+        && d.b is string && d.b.size() > 0 && d.b.size() <= 40
+        && d.date is string && d.date.size() <= 10
+        && d.upi is string && d.upi.size() <= 60
+        && (!('qr' in d) || (d.qr is string && d.qr.size() <= 400000
+                             && d.qr.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]*')))
+        && validGoals(d.goals)
+        && d.createdAt is int;
+    }
+
     match /wishlists/{id} {
       // Anyone with the link can open a wishlist. Only its creator can change it.
       allow get: if true;
       allow list: if request.auth != null && resource.data.owner == request.auth.uid;
-      allow create: if request.auth != null && request.resource.data.owner == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.owner == request.auth.uid
+                    && validWishlist(request.resource.data);
       allow update: if request.auth != null && resource.data.owner == request.auth.uid
-                    && request.resource.data.owner == resource.data.owner;
+                    && request.resource.data.owner == resource.data.owner
+                    && request.resource.data.createdAt == resource.data.createdAt
+                    && validWishlist(request.resource.data);
       allow delete: if request.auth != null && resource.data.owner == request.auth.uid;
 
       match /gifts/{gift} {
-        // Guests need no account: anyone can read and add a gift, nobody can edit one,
-        // and only the wishlist's creator can remove one.
         allow read: if true;
-        allow create: if request.resource.data.keys().hasOnly(['goal', 'amount', 'name', 'note', 'ts'])
+        allow create: if request.resource.data.keys().hasOnly(['goal', 'name', 'note', 'ts'])
+                      && request.resource.data.keys().hasAll(['goal', 'name', 'note', 'ts'])
                       && request.resource.data.goal is string && request.resource.data.goal.size() <= 40
-                      && request.resource.data.amount is int
-                      && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000
                       && request.resource.data.name is string
                       && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
                       && request.resource.data.note is string && request.resource.data.note.size() <= 140
-                      && request.resource.data.ts is int;
-        allow delete: if request.auth != null
-                      && get(/databases/$(database)/documents/wishlists/$(id)).data.owner == request.auth.uid;
+                      && request.resource.data.ts == request.time
+                      // must come with its private amount and its dream's total, in the same write
+                      && existsAfter(/databases/$(database)/documents/wishlists/$(id)/amounts/$(gift))
+                      && getAfter(/databases/$(database)/documents/wishlists/$(id)/totals/$(request.resource.data.goal)).data.last == gift;
+        allow delete: if owns(id);
+      }
+
+      match /amounts/{gift} {
+        allow read: if owns(id);
+        allow create: if request.resource.data.keys().hasOnly(['amount'])
+                      && request.resource.data.amount is int
+                      && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000
+                      && !exists(/databases/$(database)/documents/wishlists/$(id)/gifts/$(gift))
+                      && existsAfter(/databases/$(database)/documents/wishlists/$(id)/gifts/$(gift))
+                      && addsToTotal(id, gift,
+                           getAfter(/databases/$(database)/documents/wishlists/$(id)/gifts/$(gift)).data.goal,
+                           request.resource.data.amount);
+        allow delete: if owns(id);
+      }
+
+      // The dream's total must go up by exactly this gift's amount, in the same write.
+      function addsToTotal(id, gift, goal, amount) {
+        let before = get(/databases/$(database)/documents/wishlists/$(id)/totals/$(goal)).data;
+        let after = getAfter(/databases/$(database)/documents/wishlists/$(id)/totals/$(goal)).data;
+        return after.last == gift && after.raised == before.raised + amount;
+      }
+
+      match /totals/{goal} {
+        allow read: if true;
+        // The couple creates a total (at zero) when they add a dream, so a total existing
+        // is what proves the wishlist and the dream are real.
+        allow create: if owns(id) && request.resource.data.keys().hasOnly(['raised', 'last'])
+                      && request.resource.data.raised == 0 && request.resource.data.last == '';
+        allow delete: if owns(id);
+        allow update: if request.resource.data.keys().hasOnly(['raised', 'last'])
+                      && request.resource.data.raised is int && request.resource.data.raised >= 0
+                      && request.resource.data.last is string
+                      && (owns(id) || guestAdds(id, goal));
+      }
+
+      function guestAdds(id, goal) {
+        let gid = request.resource.data.last;
+        return gid.size() > 0 && gid.size() <= 40
+          && !exists(/databases/$(database)/documents/wishlists/$(id)/gifts/$(gid))
+          && existsAfter(/databases/$(database)/documents/wishlists/$(id)/gifts/$(gid))
+          && getAfter(/databases/$(database)/documents/wishlists/$(id)/gifts/$(gid)).data.goal == goal
+          && request.resource.data.raised == resource.data.raised
+               + getAfter(/databases/$(database)/documents/wishlists/$(id)/amounts/$(gid)).data.amount;
       }
     }
   }
