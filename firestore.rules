@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /wishlists/{id} {
+      // Anyone with the link can open a wishlist. Only its creator can change it.
+      allow get: if true;
+      allow list: if request.auth != null && resource.data.owner == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.owner == request.auth.uid;
+      allow update: if request.auth != null && resource.data.owner == request.auth.uid
+                    && request.resource.data.owner == resource.data.owner;
+      allow delete: if request.auth != null && resource.data.owner == request.auth.uid;
+
+      match /gifts/{gift} {
+        // Guests need no account: anyone can read and add a gift, nobody can edit one,
+        // and only the wishlist's creator can remove one.
+        allow read: if true;
+        allow create: if request.resource.data.keys().hasOnly(['goal', 'amount', 'name', 'note', 'ts'])
+                      && request.resource.data.goal is string && request.resource.data.goal.size() <= 40
+                      && request.resource.data.amount is int
+                      && request.resource.data.amount > 0 && request.resource.data.amount <= 1000000
+                      && request.resource.data.name is string
+                      && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 40
+                      && request.resource.data.note is string && request.resource.data.note.size() <= 140
+                      && request.resource.data.ts is int;
+        allow delete: if request.auth != null
+                      && get(/databases/$(database)/documents/wishlists/$(id)).data.owner == request.auth.uid;
+      }
+    }
+  }
+}

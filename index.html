@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shagun Wishlist</title>
+<meta name="description" content="A wedding wishlist where guests put their shagun towards the couple's dreams and pay by UPI.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind:wght@400;500;600&family=Rozha+One&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <a class="brand" href="./">Shagun</a>
+    <button class="btn small" id="authBtn" hidden></button>
+  </div>
+  <div class="banner" id="banner" hidden></div>
+
+  <!-- HOME: create and manage wishlists -->
+  <main id="home" class="stack" hidden style="gap:22px">
+    <header class="hero">
+      <div class="eyebrow">Wedding wishlist</div>
+      <h1>Skip the mixer. Fund a dream.</h1>
+      <p class="tag">List what you are saving for, share one link, and let every guest put their shagun towards it by UPI.</p>
+    </header>
+    <ol class="steps">
+      <li><b>Create your wishlist</b> with your names, wedding date and UPI ID.</li>
+      <li><b>Add your dreams</b>, such as a honeymoon or a home down payment, each with a target.</li>
+      <li><b>Share the link.</b> Guests open it without any account and pay you directly.</li>
+    </ol>
+
+    <section id="signedOut" hidden>
+      <button class="btn primary" id="signInBtn" style="width:100%">Sign in with Google to create a wishlist</button>
+      <p class="err" id="signInErr" role="alert"></p>
+    </section>
+
+    <section id="mine" hidden>
+      <div class="sec-head"><h2>Your wishlists</h2></div>
+      <div class="list" id="mineList"></div>
+    </section>
+
+    <section id="createBox" hidden>
+      <div class="sec-head"><h2>Create a wishlist</h2></div>
+      <form class="card" id="createForm" novalidate>
+        <div class="row">
+          <div class="field grow"><label for="newA">Partner one</label><input id="newA" maxlength="24"></div>
+          <div class="field grow"><label for="newB">Partner two</label><input id="newB" maxlength="24"></div>
+        </div>
+        <div class="field"><label for="newDate">Wedding date</label><input id="newDate" type="date"></div>
+        <div class="field"><label for="newUpi">UPI ID that receives gifts</label><input id="newUpi" maxlength="60" autocomplete="off" placeholder="name@bank"></div>
+        <div class="err" id="createErr" role="alert"></div>
+        <button type="submit" class="btn primary">Create wishlist</button>
+      </form>
+    </section>
+  </main>
+
+  <!-- WISHLIST: what guests see -->
+  <main id="wishlist" class="stack" hidden style="gap:22px">
+    <header class="hero">
+      <div class="eyebrow" id="date">Wedding wishlist</div>
+      <h1 id="names">&nbsp;</h1>
+      <p class="tag">Skip the mixer and the dinner set. Put your shagun towards something we are saving for.</p>
+      <div class="total">
+        <div class="total-row">
+          <span class="total-big num" id="raised">₹0</span>
+          <span class="total-small num" id="raisedOf"></span>
+        </div>
+        <div class="bar"><i id="totalBar" style="width:0%"></i></div>
+      </div>
+    </header>
+
+    <section class="card share" id="shareBox" hidden>
+      <div class="label">Send this link to your guests</div>
+      <code id="shareLink"></code>
+      <div class="row">
+        <button class="btn small primary" id="copyLink">Copy link</button>
+        <a class="btn small" id="waLink" target="_blank" rel="noopener">Share on WhatsApp</a>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head">
+        <h2>Our dreams</h2>
+        <button class="btn small" id="deskBtn" hidden>Couple's desk</button>
+      </div>
+      <div class="row" id="deskTools" hidden style="margin-bottom:12px">
+        <button class="btn small" id="addGoalBtn">Add a dream</button>
+        <button class="btn small" id="detailsBtn">Wedding details</button>
+      </div>
+      <div class="stack" id="goals"><p class="empty">Loading the wishlist…</p></div>
+    </section>
+
+    <section>
+      <div class="sec-head" style="margin-bottom:4px"><h2>Blessings</h2><span class="total-small num" id="giftCount"></span></div>
+      <div id="wall"></div>
+    </section>
+
+    <div class="foot">
+      <p>Guests record their own gifts here. Payments go straight to the couple by UPI and are not verified by this site.</p>
+      <p><a href="./">Create your own wishlist</a></p>
+    </div>
+  </main>
+</div>
+
+<!-- Give shagun -->
+<dialog id="giveDlg">
+  <form class="sheet" id="giveForm" novalidate>
+    <h3>Give shagun</h3>
+    <div class="lifafa">
+      <div class="lifafa-amt num" id="envAmt">₹1,101</div>
+      <div class="lifafa-sub" id="envFor"></div>
+      <div class="coin" id="coin">+₹1</div>
+    </div>
+    <div class="stack" id="stepForm" style="gap:14px">
+      <div class="field"><label for="giveGoal">Towards</label><select id="giveGoal"></select></div>
+      <div>
+        <div class="label" style="margin-bottom:6px">Amount</div>
+        <div class="chips" id="chips"></div>
+      </div>
+      <div class="field"><label for="giveCustom">Or another amount (₹)</label>
+        <input id="giveCustom" inputmode="numeric" autocomplete="off" placeholder="e.g. 3100"></div>
+      <button type="button" class="btn small" id="luckBtn" hidden>Add ₹1 for luck</button>
+      <div class="field"><label for="giveName">Your name</label><input id="giveName" maxlength="40" autocomplete="name" placeholder="e.g. The Kulkarni family"></div>
+      <div class="field"><label for="giveNote">Blessing (optional)</label><textarea id="giveNote" maxlength="140"></textarea></div>
+      <div class="err" id="giveErr" role="alert"></div>
+      <div class="row">
+        <button type="button" class="btn" data-close>Cancel</button>
+        <button type="submit" class="btn primary grow">Continue to pay</button>
+      </div>
+    </div>
+    <div class="stack" id="stepPay" hidden style="gap:14px">
+      <div class="upi" id="upiBox"></div>
+      <div class="err" id="payErr" role="alert"></div>
+      <div class="row">
+        <button type="button" class="btn" id="backBtn">Back</button>
+        <button type="button" class="btn primary grow" id="recordBtn">I've paid. Record my gift</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- Add / edit a dream -->
+<dialog id="goalDlg">
+  <form class="sheet" id="goalForm" novalidate>
+    <h3 id="goalDlgTitle">Add a dream</h3>
+    <div class="field"><label for="goalTitle">What are you saving for?</label><input id="goalTitle" maxlength="50" placeholder="e.g. Honeymoon in Europe"></div>
+    <div class="field"><label for="goalTarget">Target amount (₹)</label><input id="goalTarget" inputmode="numeric" placeholder="e.g. 300000"></div>
+    <div class="field"><label for="goalIcon">Icon</label>
+      <select id="goalIcon"><option value="plane">Trip</option><option value="home">Home</option><option value="peak">Adventure</option><option value="car">Vehicle</option><option value="sofa">Furnishing</option><option value="gift">Something else</option></select></div>
+    <div class="err" id="goalErr" role="alert"></div>
+    <div class="row">
+      <button type="button" class="btn danger" id="goalDel" hidden>Delete</button>
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary grow">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Wedding details -->
+<dialog id="metaDlg">
+  <form class="sheet" id="metaForm" novalidate>
+    <h3>Wedding details</h3>
+    <div class="row">
+      <div class="field grow"><label for="metaA">Partner one</label><input id="metaA" maxlength="24"></div>
+      <div class="field grow"><label for="metaB">Partner two</label><input id="metaB" maxlength="24"></div>
+    </div>
+    <div class="field"><label for="metaDate">Wedding date</label><input id="metaDate" type="date"></div>
+    <div class="field"><label for="metaUpi">UPI ID that receives gifts</label><input id="metaUpi" maxlength="60" autocomplete="off" placeholder="name@bank"></div>
+    <div class="err" id="metaErr" role="alert"></div>
+    <div class="row">
+      <button type="button" class="btn" data-close>Cancel</button>
+      <button type="submit" class="btn primary grow">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
